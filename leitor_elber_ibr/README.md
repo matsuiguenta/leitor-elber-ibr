@@ -14,8 +14,8 @@ Aplicação interativa em **Streamlit** e gerador de relatórios executivos em *
 
 - **Painel Interativo Streamlit**:
   - Visualização de métricas de resumo (médias, mínimas, máximas e contagens).
-  - **Filtro de Período**: Seleção flexível de intervalo de data e hora para todo o relatório e dados.
-  - **Gráfico Dinâmico com Filtro Exclusivo**: Gráfico de linha interativo para os sensores T1 e T2 com ajuste independente de período.
+  - **Filtro de Período**: Seleção flexível de intervalo de data e hora — filtra métricas, gráfico, registros e relatório PDF simultaneamente.
+  - **Gráfico Interativo com Recorte por Seleção**: Clique e arraste sobre o gráfico para marcar um intervalo de tempo; um botão aplica o recorte ao filtro global de período.
   - **Tabela de Registros**: Exibição clara e paginada dos dados brutos e traduzidos.
 
 - **Detecção Avançada de Outliers e Anomalias**:
@@ -89,11 +89,18 @@ Após executar o comando, o navegador abrirá automaticamente no endereço `http
 
 ## 📦 Instalador Windows
 
-Um instalador Windows está disponível em `arquivos/inno-setup/output/Setup_Leitor_Elber_IBR_v1.0.exe` que inclui:
-- Aplicação Python empacotada
-- Todas as dependências necessárias
-- Atalho para a área de trabalho (opcional)
-- Registro de desinstalação
+**Versão atual: v1.1.0**
+
+Um instalador Windows está disponível em `arquivos/inno-setup/Output/Setup_Leitor_Elber_IBR_v1.1.0.exe` que inclui:
+- Aplicação Python empacotada com todas as dependências
+- Atalho para a área de trabalho (opcional durante instalação)
+- Registro de desinstalação pelo Painel de Controle do Windows
+
+### Histórico de versões
+| Versão | Data | Mudanças |
+|--------|------|----------|
+| v1.1.0 | 2026-09-02 | Recorte interativo no gráfico aplica filtro global; reordenação das seções da UI; seleção de brush sem panning |
+| v1.0.0 | 2026-09-01 | Versão inicial com parser IBR, detecção de anomalias e gerador de PDF |
 
 ---
 
@@ -113,7 +120,7 @@ arquivos/
 │   ├── leitor_elber_setup.iss    # Script Inno Setup
 │   ├── leitor_elber.spec         # Configuração PyInstaller
 │   └── Output/
-│       └── Setup_Leitor_Elber_IBR_v1.0.exe  # Instalador Windows
+│       └── Setup_Leitor_Elber_IBR_v1.1.0.exe  # Instalador Windows
 └── exemplo_T.IBR       # Arquivo de exemplo adicional
 ```
 
@@ -127,6 +134,7 @@ arquivos/
 - [x] Filtros interativos para dashboard e gráfico.
 - [x] Personalização de registros na tabela do PDF.
 - [x] Nome do arquivo do relatório com ID da controladora e data de geração.
+- [x] Recorte interativo por seleção direta no gráfico (brush selection) aplicado ao filtro global.
 - [ ] Exportação direta dos dados filtrados para Excel/CSV.
 - [ ] Cadastro de unidade/local/equipamento no relatório PDF.
 - [ ] Relatório com campo para assinatura/responsável técnico.
