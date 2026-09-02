@@ -1,9 +1,9 @@
-
 from __future__ import annotations
 
 from io import BytesIO
 from pathlib import Path
 import math
+import datetime
 
 import matplotlib
 matplotlib.use("Agg")
@@ -11,13 +11,13 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
-from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    PageBreak, Image, KeepTogether
+    PageBreak, Image, KeepTogether, HRFlowable
 )
 
 from parser_ibr import temperature_stats, event_count, detect_anomalies
@@ -49,15 +49,38 @@ def _make_chart(df: pd.DataFrame) -> BytesIO:
     return buf
 
 
-def build_pdf(ibr, filename="Relatorio_Elber.pdf", df_filtered=None, max_records=30, high_temp_limit=6.0) -> bytes:
+def build_pdf(
+    ibr,
+    filename="Relatorio_Elber.pdf",
+    df_filtered=None,
+    max_records=30,
+    high_temp_limit=6.0,
+    report_info: dict | None = None,
+) -> bytes:
+    """Gera o relatório PDF.
+
+    Parameters
+    ----------
+    report_info : dict, optional
+        Dicionário com campos de identificação do local/equipamento:
+        {
+            "unidade": str,
+            "local": str,
+            "equipamento": str,
+            "responsavel": str,
+            "cargo": str,
+            "incluir_assinatura": bool,
+        }
+    """
     df = df_filtered if df_filtered is not None else ibr.data
     meta = ibr.metadata
+    ri = report_info or {}
 
     out = BytesIO()
     doc = SimpleDocTemplate(
         out, pagesize=A4,
         rightMargin=14*mm, leftMargin=14*mm,
-        topMargin=14*mm, bottomMargin=14*mm,
+        topMargin=14*mm, bottomMargin=18*mm,
         title="Relatório de Temperatura - Elber",
         author="Leitor Elber IBR",
     )
@@ -65,28 +88,67 @@ def build_pdf(ibr, filename="Relatorio_Elber.pdf", df_filtered=None, max_records
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(
         name="TitleCenter", parent=styles["Title"], alignment=TA_CENTER,
-        fontSize=18, leading=22, spaceAfter=8
+        fontSize=16, leading=20, spaceAfter=4
     ))
     styles.add(ParagraphStyle(
         name="Small", parent=styles["Normal"], fontSize=8, leading=10
     ))
     styles.add(ParagraphStyle(
-        name="Section", parent=styles["Heading2"], fontSize=12,
-        leading=15, spaceBefore=8, spaceAfter=6
+        name="SmallGray", parent=styles["Normal"], fontSize=7.5, leading=9,
+        textColor=colors.HexColor("#666666")
+    ))
+    styles.add(ParagraphStyle(
+        name="Section", parent=styles["Heading2"], fontSize=11,
+        leading=14, spaceBefore=8, spaceAfter=5
+    ))
+    styles.add(ParagraphStyle(
+        name="SignLabel", parent=styles["Normal"], fontSize=9, leading=12,
+        textColor=colors.HexColor("#444444")
     ))
 
     story = []
+
+    # ── Cabeçalho ─────────────────────────────────────────────────────────────
     story.append(Paragraph("RELATÓRIO DE MONITORAMENTO DE TEMPERATURA", styles["TitleCenter"]))
     story.append(Paragraph("Controladora Elber — arquivo de histórico .IBR", styles["Normal"]))
-    story.append(Spacer(1, 5*mm))
+    story.append(Spacer(1, 4*mm))
 
+    # ── Identificação do local / equipamento (se fornecido) ──────────────────
+    if any(ri.get(k) for k in ("unidade", "local", "equipamento", "responsavel", "cargo")):
+        id_rows = []
+        if ri.get("unidade"):
+            id_rows.append(["Unidade / Empresa", ri["unidade"]])
+        if ri.get("local"):
+            id_rows.append(["Local / Setor", ri["local"]])
+        if ri.get("equipamento"):
+            id_rows.append(["Equipamento", ri["equipamento"]])
+        if ri.get("responsavel"):
+            id_rows.append(["Responsável Técnico", ri["responsavel"]])
+        if ri.get("cargo"):
+            id_rows.append(["Cargo / Registro", ri["cargo"]])
+
+        t_id = Table(id_rows, colWidths=[50*mm, 130*mm])
+        t_id.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#dbeafe")),
+            ("BACKGROUND", (1, 0), (1, -1), colors.HexColor("#eff6ff")),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#93c5fd")),
+            ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        story.append(t_id)
+        story.append(Spacer(1, 4*mm))
+
+    # ── Metadados da controladora ─────────────────────────────────────────────
     serial = meta.get("serial", "-")
     device_id = meta.get("id", "-")
     configs = {c.get("name"): c.get("value") for c in meta.get("configs", [])}
 
     valid_dates = df["data_hora"].dropna()
     start_str = valid_dates.min().strftime("%d/%m/%Y %H:%M:%S") if not valid_dates.empty else "-"
-    end_str = valid_dates.max().strftime("%d/%m/%Y %H:%M:%S") if not valid_dates.empty else "-"
+    end_str   = valid_dates.max().strftime("%d/%m/%Y %H:%M:%S") if not valid_dates.empty else "-"
 
     info = [
         ["Arquivo", Path(filename).name],
@@ -100,54 +162,56 @@ def build_pdf(ibr, filename="Relatorio_Elber.pdf", df_filtered=None, max_records
     ]
     t = Table(info, colWidths=[45*mm, 135*mm])
     t.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (0,-1), colors.lightgrey),
-        ("GRID", (0,0), (-1,-1), 0.4, colors.grey),
-        ("FONTNAME", (0,0), (0,-1), "Helvetica-Bold"),
-        ("FONTSIZE", (0,0), (-1,-1), 8.5),
-        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-        ("LEFTPADDING", (0,0), (-1,-1), 5),
-        ("RIGHTPADDING", (0,0), (-1,-1), 5),
+        ("BACKGROUND", (0, 0), (0, -1), colors.lightgrey),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
     ]))
     story.append(t)
 
+    # ── Resumo de temperaturas ────────────────────────────────────────────────
     story.append(Paragraph("Resumo das temperaturas", styles["Section"]))
     s1 = temperature_stats(df, "T1")
     s2 = temperature_stats(df, "T2")
     summary = [
         ["Indicador", "Sensor 1 (°C)", "Sensor 2 (°C)"],
-        ["Mínima", _fmt(s1["mínima"]), _fmt(s2["mínima"])],
-        ["Máxima", _fmt(s1["máxima"]), _fmt(s2["máxima"])],
-        ["Média", _fmt(s1["média"]), _fmt(s2["média"])],
+        ["Mínima",   _fmt(s1["mínima"]),   _fmt(s2["mínima"])],
+        ["Máxima",   _fmt(s1["máxima"]),   _fmt(s2["máxima"])],
+        ["Média",    _fmt(s1["média"]),     _fmt(s2["média"])],
         ["Leituras", str(s1["leituras"]), str(s2["leituras"])],
     ]
     t = Table(summary, colWidths=[55*mm, 62*mm, 62*mm])
     t.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#e6e6e6")),
-        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-        ("GRID", (0,0), (-1,-1), 0.4, colors.grey),
-        ("ALIGN", (1,1), (-1,-1), "CENTER"),
-        ("FONTSIZE", (0,0), (-1,-1), 8.5),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e6e6e6")),
+        ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+        ("ALIGN",  (1, 1), (-1, -1), "CENTER"),
+        ("FONTSIZE", (0, 0), (-1, -1), 8.5),
     ]))
     story.append(t)
 
+    # ── Eventos e estados ────────────────────────────────────────────────────
     story.append(Paragraph("Eventos e estados", styles["Section"]))
     events = [
         ["Evento", "Quantidade de registros", "Interpretação"],
-        ["Alarme ativo", str(event_count(df, "Alarme")), "Registros em que o alarme = ON"],
-        ["Porta aberta", str(event_count(df, "Porta")), "Registros em que a porta = aberta"],
+        ["Alarme ativo",     str(event_count(df, "Alarme")),     "Registros em que o alarme = ON"],
+        ["Porta aberta",     str(event_count(df, "Porta")),      "Registros em que a porta = aberta"],
         ["Rede elétrica OFF", str(int((df["Rede"] == 0).sum())), "Registros sem rede elétrica"],
         ["Compressor ligado", str(event_count(df, "Compressor")), "Registros com compressor = ON"],
     ]
     t = Table(events, colWidths=[48*mm, 42*mm, 89*mm])
     t.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#e6e6e6")),
-        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-        ("GRID", (0,0), (-1,-1), 0.4, colors.grey),
-        ("FONTSIZE", (0,0), (-1,-1), 8.2),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e6e6e6")),
+        ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+        ("FONTSIZE", (0, 0), (-1, -1), 8.2),
     ]))
     story.append(t)
 
-    # Bloco de Alerta / Detecção de Outliers e Anomalias
+    # ── Detecção de anomalias ────────────────────────────────────────────────
     anomalies = detect_anomalies(df, meta, high_temp_limit=high_temp_limit)
     story.append(Paragraph("Detecção de Outliers e Anomalias", styles["Section"]))
 
@@ -158,9 +222,12 @@ def build_pdf(ibr, filename="Relatorio_Elber.pdf", df_filtered=None, max_records
             backColor=colors.HexColor("#d1fae5"), borderColor=colors.HexColor("#10b981"),
             borderWidth=1, borderPadding=6, spaceAfter=6
         )
-        story.append(Paragraph(f"✅ Nenhuma anomalia de temperatura (> {high_temp_limit:.1f} °C) ou alarme foi detectada no período analisado.", ok_style))
+        story.append(Paragraph(
+            f"✅ Nenhuma anomalia de temperatura (> {high_temp_limit:.1f} °C) ou alarme foi detectada no período analisado.",
+            ok_style
+        ))
     else:
-        alert_summary_style = ParagraphStyle(
+        alert_style = ParagraphStyle(
             name="AlertSummary", parent=styles["Normal"],
             fontSize=8.5, leading=11, textColor=colors.HexColor("#991b1b"),
             backColor=colors.HexColor("#fee2e2"), borderColor=colors.HexColor("#ef4444"),
@@ -170,35 +237,29 @@ def build_pdf(ibr, filename="Relatorio_Elber.pdf", df_filtered=None, max_records
             f"<b>⚠️ ALERTA:</b> Foram identificadas {len(anomalies)} ocorrência(s) de anomalia / outlier no período "
             f"(considerando temperatura > {high_temp_limit:.1f} °C ou Alarme Ativo). "
             "Abaixo estão detalhados os horários em que a anomalia iniciou, quando retornou ao normal e a duração do evento:",
-            alert_summary_style
+            alert_style
         ))
 
         display_anomalies = anomalies[:20]
         anom_rows = [["Início da Anomalia", "Retorno ao Normal", "Duração", "Detalhes / Tipo", "Status"]]
         for a in display_anomalies:
-            ini_str = a["inicio"].strftime("%d/%m/%Y %H:%M:%S")
+            ini_str  = a["inicio"].strftime("%d/%m/%Y %H:%M:%S")
             norm_str = a["retorno_normal"].strftime("%d/%m/%Y %H:%M:%S") if a["retorno_normal"] is not None else "Em aberto"
-            anom_rows.append([
-                ini_str,
-                norm_str,
-                a["duracao_str"],
-                a["tipo"],
-                "ANOMALIA"
-            ])
+            anom_rows.append([ini_str, norm_str, a["duracao_str"], a["tipo"], "ANOMALIA"])
 
         t_anom = Table(anom_rows, repeatRows=1, colWidths=[35*mm, 35*mm, 20*mm, 70*mm, 20*mm])
         t_anom.setStyle(TableStyle([
-            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#991b1b")),
-            ("TEXTCOLOR", (0,0), (-1,0), colors.white),
-            ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-            ("GRID", (0,0), (-1,-1), 0.4, colors.HexColor("#fca5a5")),
-            ("FONTSIZE", (0,0), (-1,-1), 7.5),
-            ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-            ("ALIGN", (0,0), (2,-1), "CENTER"),
-            ("ALIGN", (4,0), (4,-1), "CENTER"),
-            ("TEXTCOLOR", (4,1), (4,-1), colors.HexColor("#991b1b")),
-            ("FONTNAME", (4,1), (4,-1), "Helvetica-Bold"),
-            ("BACKGROUND", (0,1), (-1,-1), colors.HexColor("#fff5f5")),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#991b1b")),
+            ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+            ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#fca5a5")),
+            ("FONTSIZE", (0, 0), (-1, -1), 7.5),
+            ("VALIGN",   (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN",    (0, 0), (2, -1), "CENTER"),
+            ("ALIGN",    (4, 0), (4, -1), "CENTER"),
+            ("TEXTCOLOR", (4, 1), (4, -1), colors.HexColor("#991b1b")),
+            ("FONTNAME",  (4, 1), (4, -1), "Helvetica-Bold"),
+            ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#fff5f5")),
         ]))
         story.append(t_anom)
 
@@ -209,10 +270,12 @@ def build_pdf(ibr, filename="Relatorio_Elber.pdf", df_filtered=None, max_records
                 styles["Small"]
             ))
 
+    # ── Gráfico ───────────────────────────────────────────────────────────────
     story.append(PageBreak())
     story.append(Paragraph("Gráfico do histórico", styles["Section"]))
     story.append(Image(_make_chart(df), width=180*mm, height=67*mm))
 
+    # ── Tabela de leituras ────────────────────────────────────────────────────
     valid_df = df.dropna(subset=["data_hora"]).copy()
     if max_records is None or str(max_records).lower() in ("todos", "all", "0", "-1"):
         table_df = valid_df
@@ -239,12 +302,12 @@ def build_pdf(ibr, filename="Relatorio_Elber.pdf", df_filtered=None, max_records
         ])
     t = Table(rows, repeatRows=1, colWidths=[33*mm, 15*mm, 15*mm, 17*mm, 19*mm, 19*mm, 20*mm, 25*mm])
     t.setStyle(TableStyle([
-        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#e6e6e6")),
-        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
-        ("GRID", (0,0), (-1,-1), 0.3, colors.grey),
-        ("FONTSIZE", (0,0), (-1,-1), 6.2),
-        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-        ("ALIGN", (1,1), (-1,-1), "CENTER"),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e6e6e6")),
+        ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("GRID", (0, 0), (-1, -1), 0.3, colors.grey),
+        ("FONTSIZE", (0, 0), (-1, -1), 6.2),
+        ("VALIGN",   (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN",    (1, 1), (-1, -1), "CENTER"),
     ]))
     story.append(t)
 
@@ -265,17 +328,105 @@ def build_pdf(ibr, filename="Relatorio_Elber.pdf", df_filtered=None, max_records
         styles["Small"]
     ))
 
+    # ── Bloco de assinatura ───────────────────────────────────────────────────
+    if ri.get("incluir_assinatura"):
+        story.append(PageBreak())
+        story.append(Paragraph("Declaração de Responsabilidade Técnica", styles["Section"]))
+        story.append(Spacer(1, 4*mm))
+
+        # Texto de declaração
+        decl_parts = ["Eu,"]
+        if ri.get("responsavel"):
+            decl_parts.append(f"<b>{ri['responsavel']}</b>,")
+        if ri.get("cargo"):
+            decl_parts.append(f"{ri['cargo']},")
+        decl_parts.append("declaro que os dados apresentados neste relatório foram verificados")
+        decl_parts.append("e são fidedignos ao histórico registrado pelo equipamento de monitoramento de temperatura.")
+
+        story.append(Paragraph(" ".join(decl_parts), styles["Normal"]))
+        story.append(Spacer(1, 3*mm))
+
+        # Tabela com dados do equipamento/local
+        decl_info = []
+        if ri.get("unidade"):
+            decl_info.append(["Unidade / Empresa", ri["unidade"]])
+        if ri.get("local"):
+            decl_info.append(["Local / Setor", ri["local"]])
+        if ri.get("equipamento"):
+            decl_info.append(["Equipamento monitorado", ri["equipamento"]])
+        decl_info.append(["Período analisado", f"{start_str}  a  {end_str}"])
+        decl_info.append(["Data de emissão", datetime.datetime.now().strftime("%d/%m/%Y às %H:%M")])
+
+        if decl_info:
+            t_decl = Table(decl_info, colWidths=[55*mm, 125*mm])
+            t_decl.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f3f4f6")),
+                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#d1d5db")),
+                ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+                ("VALIGN",   (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING",  (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING",    (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]))
+            story.append(t_decl)
+
+        story.append(Spacer(1, 18*mm))
+
+        # Linha de local/data
+        loc_label = ri.get("local", "") or "_" * 35
+        sign_rows = [
+            [
+                Paragraph(f"Local: <b>{loc_label}</b>", styles["SignLabel"]),
+                Paragraph("Data: _______ / _______ / ___________", styles["SignLabel"]),
+            ]
+        ]
+        t_loc = Table(sign_rows, colWidths=[100*mm, 80*mm])
+        t_loc.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "BOTTOM")]))
+        story.append(t_loc)
+
+        story.append(Spacer(1, 18*mm))
+
+        # Linha de assinatura
+        nome_cargo = ri.get("responsavel", "")
+        if ri.get("cargo"):
+            nome_cargo += f"  —  {ri['cargo']}"
+
+        sign_block = [
+            [
+                Paragraph("_" * 60, styles["SignLabel"]),
+                Paragraph("_" * 60, styles["SignLabel"]),
+            ],
+            [
+                Paragraph(f"Assinatura do Responsável Técnico", styles["SmallGray"]),
+                Paragraph(f"Assinatura do Solicitante / Responsável pelo Local", styles["SmallGray"]),
+            ],
+            [
+                Paragraph(nome_cargo, styles["SmallGray"]) if nome_cargo else Paragraph("", styles["SmallGray"]),
+                Paragraph("", styles["SmallGray"]),
+            ],
+        ]
+        t_sign = Table(sign_block, colWidths=[90*mm, 90*mm])
+        t_sign.setStyle(TableStyle([
+            ("ALIGN",  (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+            ("TOPPADDING",    (0, 1), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+        ]))
+        story.append(t_sign)
+
+    # ── Footer ────────────────────────────────────────────────────────────────
     def _draw_footer(canvas, doc):
         canvas.saveState()
-        canvas.setFont("Helvetica", 8)
+        canvas.setFont("Helvetica", 7.5)
         canvas.setFillColor(colors.HexColor("#666666"))
         canvas.setStrokeColor(colors.HexColor("#cccccc"))
         canvas.setLineWidth(0.5)
-        canvas.line(14 * mm, 10 * mm, (210 - 14) * mm, 10 * mm)
+        canvas.line(14*mm, 10*mm, (210 - 14)*mm, 10*mm)
         footer_text = "Desenvolvido com ❤ por Rogério Matsui Guenta e Inteligência Artificial"
-        canvas.drawCentredString((210 * mm) / 2, 6 * mm, footer_text)
+        canvas.drawCentredString((210*mm) / 2, 6*mm, footer_text)
         canvas.restoreState()
 
     doc.build(story, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
     return out.getvalue()
-

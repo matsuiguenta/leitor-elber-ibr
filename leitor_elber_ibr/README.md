@@ -16,6 +16,7 @@ Aplicação interativa em **Streamlit** e gerador de relatórios executivos em *
   - Visualização de métricas de resumo (médias, mínimas, máximas e contagens).
   - **Filtro de Período**: Seleção flexível de intervalo de data e hora — filtra métricas, gráfico, registros e relatório PDF simultaneamente.
   - **Gráfico Interativo com Recorte por Seleção**: Clique e arraste sobre o gráfico para marcar um intervalo de tempo; um botão aplica o recorte ao filtro global de período.
+  - **Exportação CSV e Excel**: Baixe os dados filtrados diretamente da interface em `.csv` (encoding UTF-8 BOM para Excel BR) ou `.xlsx`.
   - **Tabela de Registros**: Exibição clara e paginada dos dados brutos e traduzidos.
 
 - **Detecção Avançada de Outliers e Anomalias**:
@@ -25,12 +26,14 @@ Aplicação interativa em **Streamlit** e gerador de relatórios executivos em *
 
 - **Relatório Profissional em PDF (ReportLab + Matplotlib)**:
   - Cabeçalho executivo com identificação da controladora e metadados do arquivo.
+  - **Identificação opcional do local / equipamento**: campos para Unidade, Local/Setor, Equipamento, Responsável Técnico e Cargo.
   - Tabela resumo de estatísticas de temperatura (Mínima, Máxima, Média e Contagem de leituras).
   - Resumo de eventos (Alarme ativo, Porta aberta, Rede elétrica desligada, Compressor ligado).
   - Bloco visual de alerta com tabela detalhada de anomalias detectadas.
   - Gráfico de alta resolução do histórico de temperatura.
   - Opção de customização da quantidade de registros na tabela final do PDF (20, 30, 50, 100 ou todos os registros do período).
   - **Nome do arquivo personalizado**: Inclui o ID da controladora e timestamp de geração (ex: `Relatorio_12345_20260902_174352.pdf`).
+  - **Página de assinatura** (opcional): declaração de responsabilidade técnica com linhas para assinatura do responsável e do solicitante.
 
 ---
 
@@ -99,6 +102,7 @@ Um instalador Windows está disponível que inclui:
 ### Histórico de versões
 | Versão | Data | Mudanças |
 |--------|------|----------|
+| v1.2.0 | 2026-09-02 | Exportação CSV/Excel; cadastro de local/equipamento no relatório; página de assinatura no PDF |
 | v1.1.0 | 2026-09-02 | Recorte interativo no gráfico aplica filtro global; reordenação das seções da UI; seleção de brush sem panning |
 | v1.0.0 | 2026-09-01 | Versão inicial com parser IBR, detecção de anomalias e gerador de PDF |
 
@@ -135,9 +139,9 @@ arquivos/
 - [x] Personalização de registros na tabela do PDF.
 - [x] Nome do arquivo do relatório com ID da controladora e data de geração.
 - [x] Recorte interativo por seleção direta no gráfico (brush selection) aplicado ao filtro global.
-- [ ] Exportação direta dos dados filtrados para Excel/CSV.
-- [ ] Cadastro de unidade/local/equipamento no relatório PDF.
-- [ ] Relatório com campo para assinatura/responsável técnico.
+- [x] Exportação dos dados filtrados para Excel/CSV.
+- [x] Cadastro de unidade/local/equipamento no relatório PDF.
+- [x] Relatório com página de assinatura do responsável técnico.
 - [ ] Leitura e agregação em lote de múltiplos arquivos `.IBR`.
 
 

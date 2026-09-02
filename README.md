@@ -29,6 +29,7 @@ A aplicação permite importar arquivos `.IBR` das controladoras Elber e:
 - **Filtro de Período Global**: filtra métricas, gráfico, registros e PDF simultaneamente
 - **Recorte Interativo no Gráfico**: clique e arraste sobre a linha do tempo para selecionar um intervalo e aplicá-lo como filtro global
 - Tabela de registros paginada com dados traduzidos
+- **Exportação CSV e Excel**: baixe os dados filtrados em `.csv` (compatível com Excel BR) ou `.xlsx`
 
 ### 🔍 Detecção de Anomalias
 - Limite crítico de temperatura configurável dinamicamente
@@ -37,10 +38,12 @@ A aplicação permite importar arquivos `.IBR` das controladoras Elber e:
 
 ### 📄 Relatório PDF Profissional
 - Cabeçalho executivo com metadados da controladora
+- **Identificação do local / equipamento**: campos opcionais para Unidade, Setor, Equipamento, Responsável e Cargo
 - Gráfico de alta resolução do histórico de temperatura
 - Tabela de estatísticas e resumo de eventos operacionais
 - Quantidade de registros configurável (20, 30, 50, 100 ou todos)
 - Nome de arquivo automático com ID e data de geração
+- **Página de assinatura** (opcional): declaração de responsabilidade técnica com linhas para assinatura do responsável e do solicitante
 
 ### 🔎 Parser Robusto `.IBR`
 - Decodificação de payload HEX com verificação de checksum por linha
@@ -62,7 +65,8 @@ O instalador inclui:
 
 | Versão | Data | Mudanças |
 |--------|------|----------|
-| **v1.1.0** | 2026-09-02 | Recorte interativo no gráfico → filtro global; reordenação da UI; correções de session_state |
+| **v1.2.0** | 2026-09-02 | Exportação CSV/Excel; cadastro de local/equipamento no relatório; página de assinatura no PDF |
+| v1.1.0 | 2026-09-02 | Recorte interativo no gráfico → filtro global; reordenação da UI; correções de session_state |
 | v1.0.0 | 2026-09-01 | Versão inicial: parser IBR, anomalias, PDF |
 
 ---

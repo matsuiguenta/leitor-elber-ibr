@@ -1,10 +1,10 @@
 import importlib
+import io
 import streamlit as st
 import pandas as pd
 import altair as alt
 
 import parser_ibr
-
 import report
 
 importlib.reload(parser_ibr)
@@ -56,26 +56,14 @@ if uploaded:
         if df.empty:
             st.warning("⚠️ Nenhum registro encontrado para o período selecionado. Por favor, escolha um intervalo válido.")
         else:
+            # ── 1. Métricas ────────────────────────────────────────────────────
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Registros Exibidos", f"{len(df):,} / {len(df_full):,}".replace(",", "."))
-            c2.metric("T1 média", f"{df['T1'].mean():.1f} °C" if not df['T1'].isnull().all() else "-")
-            c3.metric("T1 mínima", f"{df['T1'].min():.1f} °C" if not df['T1'].isnull().all() else "-")
-            c4.metric("T1 máxima", f"{df['T1'].max():.1f} °C" if not df['T1'].isnull().all() else "-")
+            c2.metric("T1 média",  f"{df['T1'].mean():.1f} °C" if not df['T1'].isnull().all() else "-")
+            c3.metric("T1 mínima", f"{df['T1'].min():.1f} °C"  if not df['T1'].isnull().all() else "-")
+            c4.metric("T1 máxima", f"{df['T1'].max():.1f} °C"  if not df['T1'].isnull().all() else "-")
 
-            st.subheader("Informações da controladora")
-            info = pd.DataFrame({
-                "Campo": ["ID", "Número de série", "SetPoint", "Histerese", "Início (Filtrado)", "Fim (Filtrado)"],
-                "Valor": [
-                    meta.get("id", "-"),
-                    meta.get("serial", "-"),
-                    next((x["value"] + " " + x["unit"] for x in meta.get("configs", []) if x["name"] == "SetPoint"), "-"),
-                    next((x["value"] + " " + x["unit"] for x in meta.get("configs", []) if x["name"] == "Histerese"), "-"),
-                    df["data_hora"].min().strftime("%d/%m/%Y %H:%M:%S") if not df["data_hora"].dropna().empty else "-",
-                    df["data_hora"].max().strftime("%d/%m/%Y %H:%M:%S") if not df["data_hora"].dropna().empty else "-",
-                ]
-            })
-            st.dataframe(info, hide_index=True, width='stretch')
-
+            # ── 2. Filtro de Período ───────────────────────────────────────────
             with st.expander("📅 **Filtrar por Período / Intervalo de Data e Hora**", expanded=True):
                 col_f1, col_f2 = st.columns(2)
                 with col_f1:
@@ -95,8 +83,9 @@ if uploaded:
                     mask = (df_full["data_hora"] >= start_datetime) & (df_full["data_hora"] <= end_datetime)
                     df = df_full[mask].copy()
 
+            # ── 3. Gráfico de Temperaturas ─────────────────────────────────────
             st.subheader("📊 Gráfico de Temperaturas")
-            st.caption("💡 **Recorte interativo:** Clique e arraste sobre o gráfico para marcar um intervalo. Clique em **Aplicar recorte** para filtrar todos os dados (registros, métricas e relatório PDF) por esse período.")
+            st.caption("💡 **Recorte interativo:** Clique e arraste sobre o gráfico para marcar um intervalo e clique em **Aplicar recorte** para filtrar todos os dados.")
 
             chart_prep = df.dropna(subset=["data_hora"]).copy()
             df_chart_long = chart_prep.melt(
@@ -108,7 +97,6 @@ if uploaded:
             df_chart_long["Sensor"] = df_chart_long["Sensor_Code"].map({"T1": "Sensor 1 (°C)", "T2": "Sensor 2 (°C)"})
 
             brush = alt.selection_interval(encodings=["x"], name="brush_select")
-
             chart_obj = (
                 alt.Chart(df_chart_long)
                 .mark_line(size=2)
@@ -125,14 +113,12 @@ if uploaded:
                 .add_params(brush)
                 .properties(height=380)
             )
-
-            chart_event = st.altair_chart(chart_obj, width='stretch', on_select="rerun")
+            chart_event = st.altair_chart(chart_obj, use_container_width=True, on_select="rerun")
 
             if chart_event and hasattr(chart_event, "selection") and "brush_select" in chart_event.selection:
                 selected_bounds = chart_event.selection["brush_select"]
                 if "data_hora" in selected_bounds and len(selected_bounds["data_hora"]) == 2:
                     raw_start, raw_end = selected_bounds["data_hora"]
-
                     if isinstance(raw_start, (int, float)):
                         sel_start_dt = pd.to_datetime(raw_start, unit="ms")
                         sel_end_dt   = pd.to_datetime(raw_end,   unit="ms")
@@ -147,7 +133,7 @@ if uploaded:
                     )
                     col_b1, col_b2 = st.columns([1, 1])
                     with col_b1:
-                        if st.button("🎯 Aplicar recorte ao período global", type="primary", width='stretch'):
+                        if st.button("🎯 Aplicar recorte ao período global", type="primary", use_container_width=True):
                             st.session_state["sel_start_date"] = sel_start_dt.date()
                             st.session_state["sel_start_time"] = sel_start_dt.time()
                             st.session_state["sel_end_date"]   = sel_end_dt.date()
@@ -156,20 +142,34 @@ if uploaded:
                                 st.session_state.pop(_k, None)
                             st.rerun()
                     with col_b2:
-                        if st.button("🔄 Resetar para o período completo", width='stretch'):
+                        if st.button("🔄 Resetar para o período completo", use_container_width=True):
                             for _k in ["sel_start_date", "sel_start_time", "sel_end_date", "sel_end_time",
                                        "w_start_date", "w_start_time", "w_end_date", "w_end_time"]:
                                 st.session_state.pop(_k, None)
                             st.rerun()
 
+            # ── 4. Informações da Controladora ────────────────────────────────
+            st.subheader("Informações da controladora")
+            info = pd.DataFrame({
+                "Campo": ["ID", "Número de série", "SetPoint", "Histerese", "Início (Filtrado)", "Fim (Filtrado)"],
+                "Valor": [
+                    meta.get("id", "-"),
+                    meta.get("serial", "-"),
+                    next((x["value"] + " " + x["unit"] for x in meta.get("configs", []) if x["name"] == "SetPoint"), "-"),
+                    next((x["value"] + " " + x["unit"] for x in meta.get("configs", []) if x["name"] == "Histerese"), "-"),
+                    df["data_hora"].min().strftime("%d/%m/%Y %H:%M:%S") if not df["data_hora"].dropna().empty else "-",
+                    df["data_hora"].max().strftime("%d/%m/%Y %H:%M:%S") if not df["data_hora"].dropna().empty else "-",
+                ]
+            })
+            st.dataframe(info, hide_index=True, use_container_width=True)
+
+            # ── 5. Detecção de Anomalias ───────────────────────────────────────
             st.subheader("⚠️ Detecção de Outliers e Anomalias")
             high_limit = st.number_input(
                 "🌡️ Considerar anomalia se a temperatura do Sensor 1 for superior a (°C):",
-                value=6.0,
-                step=0.5,
+                value=6.0, step=0.5,
                 help="Valores como 5.1 °C são tratados como oscilação normal. Defina 6.0 °C ou superior para detectar discrepâncias graves."
             )
-
             anomalies = detect_anomalies(df, meta, high_temp_limit=high_limit)
             if not anomalies:
                 st.success(f"✅ Nenhuma anomalia de temperatura (> {high_limit:.1f} °C) ou alarme foi detectada no período selecionado.")
@@ -187,24 +187,82 @@ if uploaded:
                         "Pico / Detalhes": a["tipo"],
                         "Status": "⚠️ ALERTA"
                     })
-                st.dataframe(pd.DataFrame(anom_data), hide_index=True, width='stretch')
+                st.dataframe(pd.DataFrame(anom_data), hide_index=True, use_container_width=True)
 
+            # ── 6. Tabela de Registros + Exportação ───────────────────────────
             st.subheader("Registros")
             display_cols = [
                 "registro", "data_hora", "T1", "T2", "Bateria",
                 "Rede_texto", "Porta_texto", "Alarme_texto", "Compressor_texto"
             ]
-            st.dataframe(
-                df[display_cols].rename(columns={
-                    "registro": "Registro", "data_hora": "Data/Hora",
-                    "T1": "T1 °C", "T2": "T2 °C", "Bateria": "Bateria V",
-                    "Rede_texto": "Rede", "Porta_texto": "Porta",
-                    "Alarme_texto": "Alarme", "Compressor_texto": "Compressor"
-                }),
-                hide_index=True, width='stretch', height=450
-            )
+            rename_map = {
+                "registro": "Registro", "data_hora": "Data/Hora",
+                "T1": "T1 °C", "T2": "T2 °C", "Bateria": "Bateria V",
+                "Rede_texto": "Rede", "Porta_texto": "Porta",
+                "Alarme_texto": "Alarme", "Compressor_texto": "Compressor"
+            }
+            df_display = df[display_cols].rename(columns=rename_map)
+            st.dataframe(df_display, hide_index=True, use_container_width=True, height=450)
 
+            # Exportação CSV / Excel
+            st.markdown("**⬇️ Exportar dados filtrados:**")
+            exp_col1, exp_col2 = st.columns([1, 1])
+
+            with exp_col1:
+                csv_bytes = df_display.to_csv(index=False, sep=";", encoding="utf-8-sig").encode("utf-8-sig")
+                controller_id = meta.get("id", "sem_id").replace("/", "-").replace("\\", "-")
+                gen_ts = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+                st.download_button(
+                    "📊 Baixar CSV",
+                    data=csv_bytes,
+                    file_name=f"Registros_{controller_id}_{gen_ts}.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
+
+            with exp_col2:
+                xlsx_buf = io.BytesIO()
+                with pd.ExcelWriter(xlsx_buf, engine="openpyxl") as writer:
+                    df_display.to_excel(writer, index=False, sheet_name="Registros")
+                xlsx_buf.seek(0)
+                st.download_button(
+                    "📗 Baixar Excel (.xlsx)",
+                    data=xlsx_buf.getvalue(),
+                    file_name=f"Registros_{controller_id}_{gen_ts}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+
+            # ── 7. Identificação do Local / Equipamento ────────────────────────
             st.divider()
+            st.subheader("📄 Gerar Relatório PDF")
+
+            with st.expander("🏢 **Identificação do local e equipamento (opcional)**", expanded=False):
+                ri_col1, ri_col2 = st.columns(2)
+                with ri_col1:
+                    ri_unidade    = st.text_input("Unidade / Empresa",    value=st.session_state.get("ri_unidade", ""),    key="ri_unidade",    placeholder="Ex.: Frigorífico Norte Ltda")
+                    ri_local      = st.text_input("Local / Setor",        value=st.session_state.get("ri_local", ""),      key="ri_local",      placeholder="Ex.: Câmara Fria 02")
+                    ri_equip      = st.text_input("Equipamento",          value=st.session_state.get("ri_equip", ""),      key="ri_equip",      placeholder="Ex.: Controladora Elber #12")
+                with ri_col2:
+                    ri_resp       = st.text_input("Responsável Técnico",  value=st.session_state.get("ri_resp", ""),       key="ri_resp",       placeholder="Ex.: João da Silva")
+                    ri_cargo      = st.text_input("Cargo / Registro",     value=st.session_state.get("ri_cargo", ""),      key="ri_cargo",      placeholder="Ex.: Técnico em Refrigeração")
+                    ri_assinatura = st.checkbox(
+                        "📝 Incluir página de assinatura no relatório",
+                        value=st.session_state.get("ri_assinatura", False),
+                        key="ri_assinatura",
+                        help="Adiciona uma página ao final do PDF com campos para assinatura do responsável técnico e do solicitante."
+                    )
+
+            report_info = {
+                "unidade":           ri_unidade,
+                "local":             ri_local,
+                "equipamento":       ri_equip,
+                "responsavel":       ri_resp,
+                "cargo":             ri_cargo,
+                "incluir_assinatura": ri_assinatura,
+            }
+
+            # ── 8. Configurações e download do PDF ─────────────────────────────
             col_pdf1, col_pdf2 = st.columns([1, 1])
             with col_pdf1:
                 pdf_records_opt = st.selectbox(
@@ -212,7 +270,6 @@ if uploaded:
                     options=["30 registros (Padrão)", "20 registros", "50 registros", "100 registros", "Todos os registros do período"],
                     index=0
                 )
-
                 if pdf_records_opt.startswith("20"):
                     max_rec = 20
                 elif pdf_records_opt.startswith("30"):
@@ -227,19 +284,23 @@ if uploaded:
             with col_pdf2:
                 st.write("")
                 st.write("")
-                pdf = build_pdf(ibr, uploaded.name, df_filtered=df, max_records=max_rec, high_temp_limit=high_limit)
-                controller_id = meta.get("id", "sem_id").replace("/", "-").replace("\\", "-")
-                gen_date = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
-                file_name = f"Relatorio_{controller_id}_{gen_date}.pdf"
+                pdf = build_pdf(
+                    ibr, uploaded.name,
+                    df_filtered=df,
+                    max_records=max_rec,
+                    high_temp_limit=high_limit,
+                    report_info=report_info
+                )
+                pdf_controller_id = meta.get("id", "sem_id").replace("/", "-").replace("\\", "-")
+                pdf_gen_date = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
                 st.download_button(
                     "📄 Gerar / baixar relatório PDF",
                     data=pdf,
-                    file_name=file_name,
+                    file_name=f"Relatorio_{pdf_controller_id}_{pdf_gen_date}.pdf",
                     mime="application/pdf",
                     type="primary",
-                    width='stretch'
+                    use_container_width=True
                 )
-
 
     except Exception as exc:
         st.error(f"Não foi possível ler o arquivo: {exc}")
