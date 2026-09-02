@@ -1,9 +1,10 @@
-
 import importlib
 import streamlit as st
 import pandas as pd
+import altair as alt
 
 import parser_ibr
+
 import report
 
 importlib.reload(parser_ibr)
@@ -38,24 +39,17 @@ if uploaded:
             min_dt = valid_dates.min()
             max_dt = valid_dates.max()
 
-            with st.expander("📅 **Filtrar por Período / Intervalo de Data e Hora**", expanded=True):
-                col_f1, col_f2 = st.columns(2)
-                with col_f1:
-                    start_date = st.date_input("Data inicial", value=min_dt.date(), min_value=min_dt.date(), max_value=max_dt.date())
-                    start_time = st.time_input("Hora inicial", value=min_dt.time())
-                with col_f2:
-                    end_date = st.date_input("Data final", value=max_dt.date(), min_value=min_dt.date(), max_value=max_dt.date())
-                    end_time = st.time_input("Hora final", value=max_dt.time())
+            def_start_date = st.session_state.get("sel_start_date", min_dt.date())
+            def_start_time = st.session_state.get("sel_start_time", min_dt.time())
+            def_end_date   = st.session_state.get("sel_end_date",   max_dt.date())
+            def_end_time   = st.session_state.get("sel_end_time",   max_dt.time())
 
-                start_datetime = pd.Timestamp.combine(start_date, start_time)
-                end_datetime = pd.Timestamp.combine(end_date, end_time)
+            def_start_date = max(min(def_start_date, max_dt.date()), min_dt.date())
+            def_end_date   = max(min(def_end_date,   max_dt.date()), min_dt.date())
 
-                if start_datetime > end_datetime:
-                    st.error("⚠️ A data/hora inicial não pode ser posterior à data/hora final.")
-                    df = df_full.copy()
-                else:
-                    mask = (df_full["data_hora"] >= start_datetime) & (df_full["data_hora"] <= end_datetime)
-                    df = df_full[mask].copy()
+            mask = (df_full["data_hora"] >= pd.Timestamp.combine(def_start_date, def_start_time)) & \
+                   (df_full["data_hora"] <= pd.Timestamp.combine(def_end_date, def_end_time))
+            df = df_full[mask].copy()
         else:
             df = df_full.copy()
 
@@ -80,9 +74,94 @@ if uploaded:
                     df["data_hora"].max().strftime("%d/%m/%Y %H:%M:%S") if not df["data_hora"].dropna().empty else "-",
                 ]
             })
-            st.dataframe(info, hide_index=True, use_container_width=True)
+            st.dataframe(info, hide_index=True, width='stretch')
 
-            # Bloco de Anomalias / Outliers
+            with st.expander("📅 **Filtrar por Período / Intervalo de Data e Hora**", expanded=True):
+                col_f1, col_f2 = st.columns(2)
+                with col_f1:
+                    start_date = st.date_input("Data inicial", value=def_start_date, min_value=min_dt.date(), max_value=max_dt.date(), key="w_start_date")
+                    start_time = st.time_input("Hora inicial", value=def_start_time, key="w_start_time")
+                with col_f2:
+                    end_date = st.date_input("Data final", value=def_end_date, min_value=min_dt.date(), max_value=max_dt.date(), key="w_end_date")
+                    end_time = st.time_input("Hora final", value=def_end_time, key="w_end_time")
+
+                start_datetime = pd.Timestamp.combine(start_date, start_time)
+                end_datetime   = pd.Timestamp.combine(end_date, end_time)
+
+                if start_datetime > end_datetime:
+                    st.error("⚠️ A data/hora inicial não pode ser posterior à data/hora final.")
+                    df = df_full.copy()
+                else:
+                    mask = (df_full["data_hora"] >= start_datetime) & (df_full["data_hora"] <= end_datetime)
+                    df = df_full[mask].copy()
+
+            st.subheader("📊 Gráfico de Temperaturas")
+            st.caption("💡 **Recorte interativo:** Clique e arraste sobre o gráfico para marcar um intervalo. Clique em **Aplicar recorte** para filtrar todos os dados (registros, métricas e relatório PDF) por esse período.")
+
+            chart_prep = df.dropna(subset=["data_hora"]).copy()
+            df_chart_long = chart_prep.melt(
+                id_vars=["data_hora"],
+                value_vars=["T1", "T2"],
+                var_name="Sensor_Code",
+                value_name="Temperatura"
+            )
+            df_chart_long["Sensor"] = df_chart_long["Sensor_Code"].map({"T1": "Sensor 1 (°C)", "T2": "Sensor 2 (°C)"})
+
+            brush = alt.selection_interval(encodings=["x"], name="brush_select")
+
+            chart_obj = (
+                alt.Chart(df_chart_long)
+                .mark_line(size=2)
+                .encode(
+                    x=alt.X("data_hora:T", title="Data / Hora"),
+                    y=alt.Y("Temperatura:Q", title="Temperatura (°C)", scale=alt.Scale(zero=False)),
+                    color=alt.Color("Sensor:N", title="Sensor", scale=alt.Scale(range=["#1f77b4", "#ff7f0e"])),
+                    tooltip=[
+                        alt.Tooltip("data_hora:T", title="Data/Hora", format="%d/%m/%Y %H:%M:%S"),
+                        alt.Tooltip("Sensor:N", title="Sensor"),
+                        alt.Tooltip("Temperatura:Q", title="Temperatura (°C)", format=".1f")
+                    ]
+                )
+                .add_params(brush)
+                .properties(height=380)
+            )
+
+            chart_event = st.altair_chart(chart_obj, width='stretch', on_select="rerun")
+
+            if chart_event and hasattr(chart_event, "selection") and "brush_select" in chart_event.selection:
+                selected_bounds = chart_event.selection["brush_select"]
+                if "data_hora" in selected_bounds and len(selected_bounds["data_hora"]) == 2:
+                    raw_start, raw_end = selected_bounds["data_hora"]
+
+                    if isinstance(raw_start, (int, float)):
+                        sel_start_dt = pd.to_datetime(raw_start, unit="ms")
+                        sel_end_dt   = pd.to_datetime(raw_end,   unit="ms")
+                    else:
+                        sel_start_dt = pd.to_datetime(raw_start)
+                        sel_end_dt   = pd.to_datetime(raw_end)
+
+                    st.info(
+                        f"📍 **Recorte selecionado:** De **{sel_start_dt.strftime('%d/%m/%Y %H:%M:%S')}** "
+                        f"até **{sel_end_dt.strftime('%d/%m/%Y %H:%M:%S')}**  —  "
+                        f"Clique em **Aplicar recorte** para filtrar registros, métricas e relatório."
+                    )
+                    col_b1, col_b2 = st.columns([1, 1])
+                    with col_b1:
+                        if st.button("🎯 Aplicar recorte ao período global", type="primary", width='stretch'):
+                            st.session_state["sel_start_date"] = sel_start_dt.date()
+                            st.session_state["sel_start_time"] = sel_start_dt.time()
+                            st.session_state["sel_end_date"]   = sel_end_dt.date()
+                            st.session_state["sel_end_time"]   = sel_end_dt.time()
+                            for _k in ["w_start_date", "w_start_time", "w_end_date", "w_end_time"]:
+                                st.session_state.pop(_k, None)
+                            st.rerun()
+                    with col_b2:
+                        if st.button("🔄 Resetar para o período completo", width='stretch'):
+                            for _k in ["sel_start_date", "sel_start_time", "sel_end_date", "sel_end_time",
+                                       "w_start_date", "w_start_time", "w_end_date", "w_end_time"]:
+                                st.session_state.pop(_k, None)
+                            st.rerun()
+
             st.subheader("⚠️ Detecção de Outliers e Anomalias")
             high_limit = st.number_input(
                 "🌡️ Considerar anomalia se a temperatura do Sensor 1 for superior a (°C):",
@@ -98,7 +177,7 @@ if uploaded:
                 st.error(f"🚨 **Atenção:** Foram encontradas **{len(anomalies)}** ocorrência(s) de anomalia / outlier no período (> {high_limit:.1f} °C ou Alarme ativo)!")
                 anom_data = []
                 for a in anomalies:
-                    ini_str = a["inicio"].strftime("%d/%m/%Y %H:%M:%S")
+                    ini_str  = a["inicio"].strftime("%d/%m/%Y %H:%M:%S")
                     norm_str = a["retorno_normal"].strftime("%d/%m/%Y %H:%M:%S") if a["retorno_normal"] is not None else "Em aberto"
                     anom_data.append({
                         "Início da Anomalia": ini_str,
@@ -108,39 +187,7 @@ if uploaded:
                         "Pico / Detalhes": a["tipo"],
                         "Status": "⚠️ ALERTA"
                     })
-                st.dataframe(pd.DataFrame(anom_data), hide_index=True, use_container_width=True)
-
-            st.subheader("📊 Gráfico de Temperaturas")
-            with st.expander("📅 **Filtrar período exclusivo para o gráfico**", expanded=True):
-                cg1, cg2 = st.columns(2)
-                valid_df_dates = df["data_hora"].dropna()
-                min_c_dt = valid_df_dates.min() if not valid_df_dates.empty else pd.Timestamp.now()
-                max_c_dt = valid_df_dates.max() if not valid_df_dates.empty else pd.Timestamp.now()
-
-                with cg1:
-                    c_s_date = st.date_input("Data inicial do gráfico", value=min_c_dt.date(), min_value=min_c_dt.date(), max_value=max_c_dt.date(), key="chart_start_date")
-                    c_s_time = st.time_input("Hora inicial do gráfico", value=min_c_dt.time(), key="chart_start_time")
-                with cg2:
-                    c_e_date = st.date_input("Data final do gráfico", value=max_c_dt.date(), min_value=min_c_dt.date(), max_value=max_c_dt.date(), key="chart_end_date")
-                    c_e_time = st.time_input("Hora final do gráfico", value=max_c_dt.time(), key="chart_end_time")
-
-                chart_start_dt = pd.Timestamp.combine(c_s_date, c_s_time)
-                chart_end_dt = pd.Timestamp.combine(c_e_date, c_e_time)
-
-                if chart_start_dt > chart_end_dt:
-                    st.error("⚠️ Data/Hora inicial do gráfico não pode ser maior que a final.")
-                    chart_df = df
-                else:
-                    chart_mask = (df["data_hora"] >= chart_start_dt) & (df["data_hora"] <= chart_end_dt)
-                    chart_df = df[chart_mask].copy()
-
-            if chart_df.empty:
-                st.warning("⚠️ Nenhum registro encontrado para o período do gráfico selecionado.")
-            else:
-                chart = chart_df.set_index("data_hora")[["T1", "T2"]].rename(columns={
-                    "T1": "Sensor 1 (°C)", "T2": "Sensor 2 (°C)"
-                })
-                st.line_chart(chart)
+                st.dataframe(pd.DataFrame(anom_data), hide_index=True, width='stretch')
 
             st.subheader("Registros")
             display_cols = [
@@ -154,7 +201,7 @@ if uploaded:
                     "Rede_texto": "Rede", "Porta_texto": "Porta",
                     "Alarme_texto": "Alarme", "Compressor_texto": "Compressor"
                 }),
-                hide_index=True, use_container_width=True, height=450
+                hide_index=True, width='stretch', height=450
             )
 
             st.divider()
@@ -181,14 +228,18 @@ if uploaded:
                 st.write("")
                 st.write("")
                 pdf = build_pdf(ibr, uploaded.name, df_filtered=df, max_records=max_rec, high_temp_limit=high_limit)
+                controller_id = meta.get("id", "sem_id").replace("/", "-").replace("\\", "-")
+                gen_date = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+                file_name = f"Relatorio_{controller_id}_{gen_date}.pdf"
                 st.download_button(
                     "📄 Gerar / baixar relatório PDF",
                     data=pdf,
-                    file_name=f"Relatorio_{uploaded.name.rsplit('.', 1)[0]}.pdf",
+                    file_name=file_name,
                     mime="application/pdf",
                     type="primary",
-                    use_container_width=True
+                    width='stretch'
                 )
+
 
     except Exception as exc:
         st.error(f"Não foi possível ler o arquivo: {exc}")
@@ -198,4 +249,3 @@ else:
 
 st.divider()
 st.caption("Desenvolvido com ❤ por Rogério Matsui Guenta e Inteligência Artificial")
-

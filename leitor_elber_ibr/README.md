@@ -30,6 +30,7 @@ Aplicação interativa em **Streamlit** e gerador de relatórios executivos em *
   - Bloco visual de alerta com tabela detalhada de anomalias detectadas.
   - Gráfico de alta resolução do histórico de temperatura.
   - Opção de customização da quantidade de registros na tabela final do PDF (20, 30, 50, 100 ou todos os registros do período).
+  - **Nome do arquivo personalizado**: Inclui o ID da controladora e timestamp de geração (ex: `Relatorio_12345_20260902_174352.pdf`).
 
 ---
 
@@ -86,6 +87,16 @@ Após executar o comando, o navegador abrirá automaticamente no endereço `http
 
 ---
 
+## 📦 Instalador Windows
+
+Um instalador Windows está disponível em `arquivos/inno-setup/output/Setup_Leitor_Elber_IBR_v1.0.exe` que inclui:
+- Aplicação Python empacotada
+- Todas as dependências necessárias
+- Atalho para a área de trabalho (opcional)
+- Registro de desinstalação
+
+---
+
 ## 📂 Estrutura do Projeto
 
 ```text
@@ -96,6 +107,14 @@ leitor_elber_ibr/
 ├── exemplo_T.IBR       # Arquivo de exemplo para testes
 ├── requirements.txt    # Dependências do projeto (streamlit, pandas, matplotlib, reportlab)
 └── README.md           # Documentação do projeto
+
+arquivos/
+├── inno-setup/         # Scripts e configuração do instalador Windows
+│   ├── leitor_elber_setup.iss    # Script Inno Setup
+│   ├── leitor_elber.spec         # Configuração PyInstaller
+│   └── Output/
+│       └── Setup_Leitor_Elber_IBR_v1.0.exe  # Instalador Windows
+└── exemplo_T.IBR       # Arquivo de exemplo adicional
 ```
 
 ---
@@ -107,10 +126,13 @@ leitor_elber_ibr/
 - [x] Identificação de temperaturas fora da faixa por evento/duração.
 - [x] Filtros interativos para dashboard e gráfico.
 - [x] Personalização de registros na tabela do PDF.
+- [x] Nome do arquivo do relatório com ID da controladora e data de geração.
 - [ ] Exportação direta dos dados filtrados para Excel/CSV.
 - [ ] Cadastro de unidade/local/equipamento no relatório PDF.
 - [ ] Relatório com campo para assinatura/responsável técnico.
 - [ ] Leitura e agregação em lote de múltiplos arquivos `.IBR`.
 
+
+---
 
 Desenvolvido com ❤ por Rogério Matsui Guenta e Inteligência Artificial
