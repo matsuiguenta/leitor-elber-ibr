@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+*.egg-info/
+
+# PyInstaller
+arquivos/inno-setup/build/
+arquivos/inno-setup/dist/
+
+# Arquivos gerados
+arquivos/Relatorio_*.pdf
+arquivos/inno-setup/Output/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
