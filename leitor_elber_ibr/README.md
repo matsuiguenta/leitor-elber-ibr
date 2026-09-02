@@ -89,9 +89,9 @@ Após executar o comando, o navegador abrirá automaticamente no endereço `http
 
 ## 📦 Instalador Windows
 
-**Versão atual: v1.1.0**
+**Versão atual: v1.1.0** — [⬇️ Baixar instalador](https://github.com/matsuiguenta/leitor-elber-ibr/releases/download/v1.1.0/Setup_Leitor_Elber_IBR_v1.1.0.exe) | [Todas as versões](https://github.com/matsuiguenta/leitor-elber-ibr/releases)
 
-Um instalador Windows está disponível em `arquivos/inno-setup/Output/Setup_Leitor_Elber_IBR_v1.1.0.exe` que inclui:
+Um instalador Windows está disponível que inclui:
 - Aplicação Python empacotada com todas as dependências
 - Atalho para a área de trabalho (opcional durante instalação)
 - Registro de desinstalação pelo Painel de Controle do Windows

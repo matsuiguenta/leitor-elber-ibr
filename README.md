@@ -51,7 +51,9 @@ A aplicação permite importar arquivos `.IBR` das controladoras Elber e:
 
 ## 📦 Instalador Windows
 
-**[⬇️ Baixar Setup_Leitor_Elber_IBR_v1.1.0.exe](https://github.com/matsuiguenta/leitor-elber-ibr/releases/tag/v1.1.0)**
+**[⬇️ Baixar Setup_Leitor_Elber_IBR_v1.1.0.exe](https://github.com/matsuiguenta/leitor-elber-ibr/releases/download/v1.1.0/Setup_Leitor_Elber_IBR_v1.1.0.exe)**
+
+> Todas as versões disponíveis em: [github.com/matsuiguenta/leitor-elber-ibr/releases](https://github.com/matsuiguenta/leitor-elber-ibr/releases)
 
 O instalador inclui:
 - Aplicação completa com todas as dependências Python embutidas
