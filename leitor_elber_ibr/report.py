@@ -395,24 +395,29 @@ def build_pdf(
 
         sign_block = [
             [
-                Paragraph("_" * 60, styles["SignLabel"]),
-                Paragraph("_" * 60, styles["SignLabel"]),
+                HRFlowable(width="100%", thickness=0.8, color=colors.black, spaceAfter=2),
+                HRFlowable(width="100%", thickness=0.8, color=colors.black, spaceAfter=2),
             ],
             [
-                Paragraph(f"Assinatura do Responsável Técnico", styles["SmallGray"]),
-                Paragraph(f"Assinatura do Solicitante / Responsável pelo Local", styles["SmallGray"]),
+                Paragraph("Assinatura do Responsável Técnico", styles["SmallGray"]),
+                Paragraph("Assinatura do Solicitante / Responsável pelo Local", styles["SmallGray"]),
             ],
             [
                 Paragraph(nome_cargo, styles["SmallGray"]) if nome_cargo else Paragraph("", styles["SmallGray"]),
                 Paragraph("", styles["SmallGray"]),
             ],
         ]
-        t_sign = Table(sign_block, colWidths=[90*mm, 90*mm])
+        t_sign = Table(sign_block, colWidths=[88*mm, 92*mm])
         t_sign.setStyle(TableStyle([
             ("ALIGN",  (0, 0), (-1, -1), "CENTER"),
-            ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+            ("VALIGN", (0, 0), (-1, 0), "BOTTOM"),
+            ("VALIGN", (0, 1), (-1, -1), "TOP"),
+            ("TOPPADDING",    (0, 0), (-1, 0), 0),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 0),
             ("TOPPADDING",    (0, 1), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ("BOTTOMPADDING", (0, 1), (-1, -1), 0),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
         ]))
         story.append(t_sign)
 
