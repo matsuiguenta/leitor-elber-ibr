@@ -113,7 +113,7 @@ if uploaded:
                 .add_params(brush)
                 .properties(height=380)
             )
-            chart_event = st.altair_chart(chart_obj, use_container_width=True, on_select="rerun")
+            chart_event = st.altair_chart(chart_obj, width='stretch', on_select="rerun")
 
             if chart_event and hasattr(chart_event, "selection") and "brush_select" in chart_event.selection:
                 selected_bounds = chart_event.selection["brush_select"]
@@ -133,7 +133,7 @@ if uploaded:
                     )
                     col_b1, col_b2 = st.columns([1, 1])
                     with col_b1:
-                        if st.button("🎯 Aplicar recorte ao período global", type="primary", use_container_width=True):
+                        if st.button("🎯 Aplicar recorte ao período global", type="primary", width='stretch'):
                             st.session_state["sel_start_date"] = sel_start_dt.date()
                             st.session_state["sel_start_time"] = sel_start_dt.time()
                             st.session_state["sel_end_date"]   = sel_end_dt.date()
@@ -142,7 +142,7 @@ if uploaded:
                                 st.session_state.pop(_k, None)
                             st.rerun()
                     with col_b2:
-                        if st.button("🔄 Resetar para o período completo", use_container_width=True):
+                        if st.button("🔄 Resetar para o período completo", width='stretch'):
                             for _k in ["sel_start_date", "sel_start_time", "sel_end_date", "sel_end_time",
                                        "w_start_date", "w_start_time", "w_end_date", "w_end_time"]:
                                 st.session_state.pop(_k, None)
@@ -161,7 +161,7 @@ if uploaded:
                     df["data_hora"].max().strftime("%d/%m/%Y %H:%M:%S") if not df["data_hora"].dropna().empty else "-",
                 ]
             })
-            st.dataframe(info, hide_index=True, use_container_width=True)
+            st.dataframe(info, hide_index=True, width='stretch')
 
             # ── 5. Detecção de Anomalias ───────────────────────────────────────
             st.subheader("⚠️ Detecção de Outliers e Anomalias")
@@ -187,7 +187,7 @@ if uploaded:
                         "Pico / Detalhes": a["tipo"],
                         "Status": "⚠️ ALERTA"
                     })
-                st.dataframe(pd.DataFrame(anom_data), hide_index=True, use_container_width=True)
+                st.dataframe(pd.DataFrame(anom_data), hide_index=True, width='stretch')
 
             # ── 6. Tabela de Registros + Exportação ───────────────────────────
             st.subheader("Registros")
@@ -202,7 +202,7 @@ if uploaded:
                 "Alarme_texto": "Alarme", "Compressor_texto": "Compressor"
             }
             df_display = df[display_cols].rename(columns=rename_map)
-            st.dataframe(df_display, hide_index=True, use_container_width=True, height=450)
+            st.dataframe(df_display, hide_index=True, width='stretch', height=450)
 
             # Exportação CSV / Excel
             st.markdown("**⬇️ Exportar dados filtrados:**")
@@ -217,7 +217,7 @@ if uploaded:
                     data=csv_bytes,
                     file_name=f"Registros_{controller_id}_{gen_ts}.csv",
                     mime="text/csv",
-                    use_container_width=True
+                    width='stretch'
                 )
 
             with exp_col2:
@@ -230,36 +230,43 @@ if uploaded:
                     data=xlsx_buf.getvalue(),
                     file_name=f"Registros_{controller_id}_{gen_ts}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
+                    width='stretch'
                 )
 
             # ── 7. Identificação do Local / Equipamento ────────────────────────
             st.divider()
             st.subheader("📄 Gerar Relatório PDF")
 
+            # Inicializa defaults no session_state (executado apenas uma vez por sessão)
+            for _k, _v in [
+                ("ri_unidade", ""), ("ri_local", ""), ("ri_equip", ""),
+                ("ri_resp", ""),    ("ri_cargo", ""), ("ri_assinatura", False),
+            ]:
+                if _k not in st.session_state:
+                    st.session_state[_k] = _v
+
             with st.expander("🏢 **Identificação do local e equipamento (opcional)**", expanded=False):
                 ri_col1, ri_col2 = st.columns(2)
                 with ri_col1:
-                    ri_unidade    = st.text_input("Unidade / Empresa",    value=st.session_state.get("ri_unidade", ""),    key="ri_unidade",    placeholder="Ex.: Frigorífico Norte Ltda")
-                    ri_local      = st.text_input("Local / Setor",        value=st.session_state.get("ri_local", ""),      key="ri_local",      placeholder="Ex.: Câmara Fria 02")
-                    ri_equip      = st.text_input("Equipamento",          value=st.session_state.get("ri_equip", ""),      key="ri_equip",      placeholder="Ex.: Controladora Elber #12")
+                    st.text_input("Unidade / Empresa",   key="ri_unidade", placeholder="Ex.: Frigorífico Norte Ltda")
+                    st.text_input("Local / Setor",       key="ri_local",   placeholder="Ex.: Câmara Fria 02")
+                    st.text_input("Equipamento",         key="ri_equip",   placeholder="Ex.: Controladora Elber #12")
                 with ri_col2:
-                    ri_resp       = st.text_input("Responsável Técnico",  value=st.session_state.get("ri_resp", ""),       key="ri_resp",       placeholder="Ex.: João da Silva")
-                    ri_cargo      = st.text_input("Cargo / Registro",     value=st.session_state.get("ri_cargo", ""),      key="ri_cargo",      placeholder="Ex.: Técnico em Refrigeração")
-                    ri_assinatura = st.checkbox(
+                    st.text_input("Responsável Técnico", key="ri_resp",    placeholder="Ex.: João da Silva")
+                    st.text_input("Cargo / Registro",    key="ri_cargo",   placeholder="Ex.: Técnico em Refrigeração")
+                    st.checkbox(
                         "📝 Incluir página de assinatura no relatório",
-                        value=st.session_state.get("ri_assinatura", False),
                         key="ri_assinatura",
                         help="Adiciona uma página ao final do PDF com campos para assinatura do responsável técnico e do solicitante."
                     )
 
             report_info = {
-                "unidade":           ri_unidade,
-                "local":             ri_local,
-                "equipamento":       ri_equip,
-                "responsavel":       ri_resp,
-                "cargo":             ri_cargo,
-                "incluir_assinatura": ri_assinatura,
+                "unidade":            st.session_state["ri_unidade"],
+                "local":              st.session_state["ri_local"],
+                "equipamento":        st.session_state["ri_equip"],
+                "responsavel":        st.session_state["ri_resp"],
+                "cargo":              st.session_state["ri_cargo"],
+                "incluir_assinatura": st.session_state["ri_assinatura"],
             }
 
             # ── 8. Configurações e download do PDF ─────────────────────────────
@@ -299,7 +306,7 @@ if uploaded:
                     file_name=f"Relatorio_{pdf_controller_id}_{pdf_gen_date}.pdf",
                     mime="application/pdf",
                     type="primary",
-                    use_container_width=True
+                    width='stretch'
                 )
 
     except Exception as exc:

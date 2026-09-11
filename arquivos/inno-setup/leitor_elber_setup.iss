@@ -2,7 +2,7 @@
 ; Desenvolvido por Rogério Matsui Guenta e Inteligência Artificial
 
 #define MyAppName "Leitor Elber IBR"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.2.0"
 #define MyAppPublisher "Rogério Matsui Guenta"
 #define MyAppExeName "LeitorElberIBR.exe"
 #define MyAppDir "dist\LeitorElberIBR"
@@ -15,7 +15,7 @@ AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-OutputBaseFilename=Setup_Leitor_Elber_IBR_v1.1.0
+OutputBaseFilename=Setup_Leitor_Elber_IBR_v1.2.0
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
